@@ -7,9 +7,9 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { PUZZLES, getPuzzle, puzzlesInWorld } from '../data/puzzles'
+import { PUZZLES, getPuzzle, puzzlesInGroup, puzzlesInWorld } from '../data/puzzles'
 import { WORLDS } from '../data/worlds'
-import type { WorldId } from '../data/types'
+import type { Difficulty, WorldId } from '../data/types'
 import { scoreRun, type PlaySummary } from './scoring'
 import * as sfx from './sound'
 import {
@@ -45,6 +45,11 @@ interface ProgressValue {
   levelCount: number
   worldProgress: (worldId: WorldId) => WorldProgress
   isWorldUnlocked: (worldId: WorldId) => boolean
+  /** Progress within one difficulty slice of a world. */
+  groupProgress: (worldId: WorldId, difficulty: Difficulty) => WorldProgress
+  /** Remember which tier the player browses. Never a lock. */
+  setDifficulty: (difficulty: Difficulty) => void
+  difficulty: Difficulty
   /** Record a cleared level and build the result for the results screen. */
   completeLevel: (puzzleId: string, attempts: number, hintsUsed: number) => SessionResult
   /** Remember where the player stopped so Home can offer "Continue". */
@@ -146,6 +151,26 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
     [totalStars],
   )
 
+  /** Same shape as `worldProgress`, scoped to a single difficulty. */
+  const groupProgress = useCallback(
+    (worldId: WorldId, difficulty: Difficulty): WorldProgress => {
+      const levels = puzzlesInGroup(worldId, difficulty)
+      const stars = levels.reduce((sum, p) => sum + (save.levels[p.id]?.stars ?? 0), 0)
+      const solved = levels.filter((p) => save.levels[p.id]?.solved).length
+      return {
+        worldId,
+        totalStars: stars,
+        maxStars: levels.length * 3,
+        solved,
+        total: levels.length,
+        // Every tier of an unlocked world is playable.
+        unlocked: isUnlocked(worldId, totalStars),
+        percent: levels.length ? (solved / levels.length) * 100 : 0,
+      }
+    },
+    [save.levels, totalStars],
+  )
+
   const completeLevel = useCallback(
     (puzzleId: string, attempts: number, hintsUsed: number): SessionResult => {
       const puzzle = getPuzzle(puzzleId)
@@ -200,14 +225,26 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
     [persist, save],
   )
 
+  const setDifficulty = useCallback(
+    (difficulty: Difficulty) => {
+      if (save.settings.difficulty === difficulty) return
+      persist({ ...save, settings: { ...save.settings, difficulty } })
+    },
+    [persist, save],
+  )
+
   const resetProgress = useCallback(() => {
-    const fresh = defaultSave()
-    // A reset should not silently mute the player.
-    fresh.settings = { ...fresh.settings, sound: save.settings.sound }
-    clearSave()
-    persist(fresh)
-    setSession(null)
-  }, [persist, save.settings.sound])
+  const fresh = defaultSave()
+  // A reset should not silently mute the player or change their tier.
+  fresh.settings = {
+    ...fresh.settings,
+    sound: save.settings.sound,
+    difficulty: save.settings.difficulty,
+  }
+  clearSave()
+  persist(fresh)
+  setSession(null)
+  }, [persist, save.settings])
 
   const value = useMemo<ProgressValue>(
     () => ({
@@ -220,6 +257,9 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
       levelCount: PUZZLES.length,
       worldProgress,
       isWorldUnlocked: isWorldUnlockedFn,
+      groupProgress,
+      setDifficulty,
+      difficulty: save.settings.difficulty,
       completeLevel,
       setLastLevel,
       toggleSound,
@@ -237,6 +277,8 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
       solvedCount,
       worldProgress,
       isWorldUnlockedFn,
+      groupProgress,
+      setDifficulty,
       completeLevel,
       setLastLevel,
       toggleSound,

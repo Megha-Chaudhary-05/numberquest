@@ -6,7 +6,7 @@ import { Button } from '../components/ui/Button'
 import { HomeIcon, MapIcon, NextIcon, RefreshIcon } from '../components/ui/Icons'
 import { Card, Chip, ProgressBar, Screen, StarRow, TopBar } from '../components/ui'
 import { Confetti } from '../components/ui/Confetti'
-import { getPuzzle, LEVEL_ORDER } from '../data/puzzles'
+import { getPuzzle, nextPuzzle, puzzlesInGroup } from '../data/puzzles'
 import { getWorld } from '../data/worlds'
 import { answerLabel } from '../game/grading'
 import { starsFor } from '../game/scoring'
@@ -59,8 +59,16 @@ export function ResultScreen() {
     )
   }
 
-  const index = LEVEL_ORDER.findIndex((p) => p.id === puzzle.id)
-  const next = index >= 0 && index < LEVEL_ORDER.length - 1 ? LEVEL_ORDER[index + 1] : null
+  // Next level in the *same tier* when one exists, so finishing "Easy 3" leads
+  // to "Easy 4" rather than jumping to Medium 1. At the end of a tier it falls
+  // back to the global order, so the last level of a tier still has somewhere
+  // to go.
+  const sameTier = puzzlesInGroup(puzzle.worldId, puzzle.difficulty)
+  const tierIndex = sameTier.findIndex((p) => p.id === puzzle.id)
+  const next =
+    tierIndex >= 0 && tierIndex < sameTier.length - 1
+      ? sameTier[tierIndex + 1]
+      : nextPuzzle(puzzle.id)
   const progress = worldProgress(puzzle.worldId)
   const worldJustCleared = progress.solved === progress.total
   const overallPercent = (solvedCount / levelCount) * 100

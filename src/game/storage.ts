@@ -1,4 +1,4 @@
-import type { WorldId } from '../data/types'
+import { isDifficulty, type Difficulty, type WorldId } from '../data/types'
 
 /* ============================================================ persistence ==== */
 
@@ -19,6 +19,8 @@ export interface LevelRecord {
 export interface Settings {
   sound: boolean
   reduceMotion: boolean
+  /** The tier the player last browsed. Purely a starting view, never a lock. */
+  difficulty: Difficulty
 }
 
 export interface SaveData {
@@ -44,7 +46,7 @@ export const defaultSave = (): SaveData => ({
   totalStars: 0,
   totalPoints: 0,
   levels: {},
-  settings: { sound: true, reduceMotion: false },
+  settings: { sound: true, reduceMotion: false, difficulty: 'easy' },
   lastLevelId: null,
 })
 
@@ -122,6 +124,7 @@ export function migrate(parsed: unknown): SaveData {
   const settings: Settings = {
     sound: input.settings?.sound !== false,
     reduceMotion: Boolean(input.settings?.reduceMotion),
+    difficulty: isDifficulty(input.settings?.difficulty) ? input.settings.difficulty : 'easy',
   }
 
   return {

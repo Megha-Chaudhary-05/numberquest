@@ -5,6 +5,7 @@ import { RefreshIcon, SoundOnIcon, StarsIcon } from '../components/ui/Icons'
 import { Card, Chip, ProgressBar, Screen, TopBar } from '../components/ui'
 import { MAX_STARS } from '../data/puzzles'
 import { WORLDS } from '../data/worlds'
+import { DIFFICULTIES, DIFFICULTY_META } from '../data/types'
 import { useProgress } from '../game/ProgressContext'
 import { play } from '../game/sound'
 
@@ -23,6 +24,8 @@ export function SettingsScreen() {
     solvedCount,
     levelCount,
     worldProgress,
+    difficulty,
+    setDifficulty,
   } = useProgress()
 
   const [confirming, setConfirming] = useState(false)
@@ -52,6 +55,51 @@ export function SettingsScreen() {
             on={reduceMotion}
             onToggle={() => setReduceMotion(!reduceMotion)}
           />
+        </Card>
+
+        {/* Preferred difficulty */}
+        <Card className="p-4 sm:p-5">
+          <h2 className="text-base font-extrabold text-ink">Default difficulty</h2>
+          <p className="mt-0.5 text-sm font-semibold text-ink-soft">
+            Which tier the world map and level list open on. Every tier stays playable — this only
+            changes where you start.
+          </p>
+          <div
+            role="tablist"
+            aria-label="Default difficulty"
+            className="mt-3 flex gap-2 rounded-3xl border-2 border-line bg-white/70 p-1.5"
+          >
+            {DIFFICULTIES.map((d) => {
+              const meta = DIFFICULTY_META[d]
+              const active = d === difficulty
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => {
+                    play('select')
+                    setDifficulty(d)
+                  }}
+                  className={[
+                    'flex-1 rounded-2xl px-2 py-2.5 text-sm font-extrabold transition',
+                    active
+                      ? 'bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-pop'
+                      : 'text-ink-soft hover:bg-brand-50',
+                  ].join(' ')}
+                >
+                  <span aria-hidden="true" className="mr-1">
+                    {meta.emoji}
+                  </span>
+                  {meta.label}
+                </button>
+              )
+            })}
+          </div>
+          <p className="mt-2 text-xs font-semibold text-ink-faint">
+            {DIFFICULTY_META[difficulty].blurb}
+          </p>
         </Card>
 
         {/* Progress summary */}

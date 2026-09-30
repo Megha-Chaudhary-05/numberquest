@@ -8,9 +8,15 @@ import { MapIcon } from '../components/ui/Icons'
 import { Card, Chip, Screen, SoundButton, TopBar } from '../components/ui'
 import { Confetti, SuccessPulse } from '../components/ui/Confetti'
 import { FeedbackPanel, HintPanel } from '../components/ui/FeedbackPanel'
-import { getPuzzle, LEVEL_ORDER } from '../data/puzzles'
+import {
+  getPuzzle,
+  LEVEL_ORDER,
+  LEVELS_PER_GROUP,
+  nextPuzzle,
+  puzzlesInGroup,
+} from '../data/puzzles'
 import { getWorld } from '../data/worlds'
-import type { Puzzle } from '../data/types'
+import { DIFFICULTY_META, type Puzzle } from '../data/types'
 import { correctOptionIndex, hasAnswer, isCorrect, needsSubmit, optionList } from '../game/grading'
 import { useProgress } from '../game/ProgressContext'
 import { play } from '../game/sound'
@@ -74,12 +80,18 @@ function PlayRound({ puzzle }: { puzzle: Puzzle }) {
   const world = getWorld(puzzle.worldId)
   const correctIndex = correctOptionIndex(puzzle)
   const submitStyle = needsSubmit(puzzle)
+  // Global play order, used for the "Puzzle N of 600" readout.
   const levelNumber = LEVEL_ORDER.findIndex((p) => p.id === puzzle.id) + 1
 
+  // Skipping stays inside the tier being played, so a child working through hard
+  // levels is never dropped into easy. At the end of a tier it falls back to the
+  // next level in the global order, so the button never dead-ends.
   const next = useMemo(() => {
-    const i = LEVEL_ORDER.findIndex((p) => p.id === puzzle.id)
-    return i >= 0 && i < LEVEL_ORDER.length - 1 ? LEVEL_ORDER[i + 1] : null
-  }, [puzzle.id])
+    const sameTier = puzzlesInGroup(puzzle.worldId, puzzle.difficulty)
+    const i = sameTier.findIndex((p) => p.id === puzzle.id)
+    if (i >= 0 && i < sameTier.length - 1) return sameTier[i + 1]
+    return nextPuzzle(puzzle.id)
+  }, [puzzle.id, puzzle.worldId, puzzle.difficulty])
 
   /* ------------------------------------------------------------- grade --- */
 
@@ -180,15 +192,25 @@ function PlayRound({ puzzle }: { puzzle: Puzzle }) {
       />
 
       <main className="safe-x safe-b mx-auto w-full max-w-2xl flex-1 space-y-4 pb-6 sm:space-y-5">
-        <div className="flex items-center justify-between gap-2">
-          <Chip tone="grape">
-            <span className="text-lg" aria-hidden="true">
-              {puzzle.badge}
-            </span>
-            Puzzle {levelNumber} of {LEVEL_ORDER.length}
-          </Chip>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Chip tone="grape">
+              <span className="text-lg" aria-hidden="true">
+                {puzzle.badge}
+              </span>
+              Level {puzzle.levelNumber} of {LEVELS_PER_GROUP}
+            </Chip>
+            {/* With 600 levels, the tier badge is what keeps a level identifiable. */}
+            <Chip tone={DIFFICULTY_META[puzzle.difficulty].tone === 'coral' ? 'coral' : 'mint'}>
+              <span aria-hidden="true">{DIFFICULTY_META[puzzle.difficulty].emoji}</span>
+              {DIFFICULTY_META[puzzle.difficulty].label}
+            </Chip>
+          </div>
           {attempts > 0 && !solved ? <Chip tone="sky">Attempt {attempts + 1}</Chip> : null}
         </div>
+        <p className="sr-only">
+          Puzzle {levelNumber} of {LEVEL_ORDER.length} in the whole game.
+        </p>
 
         {/* Prompt */}
         <Card className="relative overflow-hidden p-5 sm:p-6">

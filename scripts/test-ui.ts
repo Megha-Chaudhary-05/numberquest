@@ -83,8 +83,13 @@ const { LevelSelectScreen } = await import('../src/screens/LevelSelectScreen.tsx
 const { PlayScreen } = await import('../src/screens/PlayScreen.tsx')
 const { ResultScreen } = await import('../src/screens/ResultScreen.tsx')
 const { SettingsScreen } = await import('../src/screens/SettingsScreen.tsx')
-const { PUZZLES } = await import('../src/data/puzzles.ts')
+const { LEVELS_PER_GROUP, PUZZLES, puzzlesInGroup, puzzlesInWorld, worldLevelCount } =
+  await import('../src/data/puzzles.ts')
 const { WORLDS } = await import('../src/data/worlds.ts')
+const { DIFFICULTIES } = await import('../src/data/types.ts')
+
+/** Levels per world: 50 per tier across all three tiers. */
+const WORLD_LEVELS = LEVELS_PER_GROUP * DIFFICULTIES.length
 
 const h = React.createElement
 // tsx transpiles JSX with the classic runtime here, which reads a bare
@@ -229,7 +234,7 @@ await test('home screen shows the brand, the stats card and all three actions', 
   go('/')
   assert(text().includes('NumberQuest'), 'brand name missing')
   assert(text().includes('A maths puzzle adventure'), 'tagline missing')
-  assert(text().includes('0 of 10 puzzles solved'), 'solved count missing')
+  assert(text().includes(`0 of ${PUZZLES.length} puzzles solved`), 'solved count missing')
   assert(byText('button', 'Start playing'), 'no start button')
   assert(byText('button', 'World map'), 'no map button')
   assert(byText('button', 'All levels'), 'no levels button')
@@ -251,15 +256,18 @@ await test('map lists all four worlds and shows open vs locked state', () => {
   go('/map')
   for (const world of WORLDS) assert(text().includes(world.name), `missing ${world.name}`)
   // Meadow is open on a fresh save, so it shows progress rather than a cost.
-  assert(text().includes('0/3 solved'), 'open world should show its progress')
+  assert(text().includes(`0/${WORLD_LEVELS} solved`), 'open world should show progress')
   assert(text().includes('more stars to unlock'), 'locked worlds should hint at the cost')
-  assert(text().includes('14 more stars to unlock'), 'unlock cost should be exact')
+  assert(
+    text().includes(`${WORLDS[3].starsToUnlock} more stars to unlock`),
+    'unlock cost should be exact',
+  )
 })
 
 await test('a locked world hides its levels and states the requirement', () => {
   go('/world/ruins')
   assert(text().includes('is locked'), 'locked world should say so')
-  assert(text().includes('Collect 14 stars'), 'unlock requirement not stated')
+  assert(text().includes(`Collect ${WORLDS[3].starsToUnlock} stars`), 'unlock requirement not stated')
   assert(text().includes('Back to the map'), 'no escape from a locked world')
   assert(
     !text().includes('The Clever Shepherd'),
@@ -267,13 +275,68 @@ await test('a locked world hides its levels and states the requirement', () => {
   )
 })
 
-await test('level select for an open world shows its three levels', () => {
+await test('level select for an open world shows all 50 levels of the chosen tier', () => {
   go('/world/meadow')
   for (const id of ['even-steps', 'double-trouble', 'apple-cart']) {
     const puzzle = PUZZLES.find((p) => p.id === id)!
     assert(text().includes(puzzle.title), `missing ${puzzle.title}`)
   }
-  assert(text().includes('0 of 3 puzzles solved'), 'world progress missing')
+  assert(text().includes(`0 of ${WORLD_LEVELS} puzzles solved`), 'world progress missing')
+
+  // Every level of the easy tier is offered, numbered 1..50.
+  const buttons = container.querySelectorAll('[aria-label^="Easy level"]')
+  equal(buttons.length, 50, 'expected 50 easy levels in the meadow')
+  const labels = [...buttons].map((b) => b.getAttribute('aria-label') ?? '')
+  for (let n = 1; n <= 50; n++) {
+    assert(
+      labels.some((l) => l.startsWith(`Easy level ${n},`)),
+      `easy level ${n} is missing from the list`,
+    )
+  }
+})
+
+await test('the difficulty picker switches tiers and persists the choice', () => {
+  const hard = [...container.querySelectorAll('[role="tab"]')].find(
+    (t) => t.textContent?.includes('Hard'),
+  )
+  assert(hard, 'no Hard tab')
+  equal(hard?.getAttribute('aria-selected'), 'false', 'Hard should not start selected')
+  tap(hard, 'Hard tab')
+  equal(
+    [...container.querySelectorAll('[role="tab"]')].find((t) => t.textContent?.includes('Hard'))
+      ?.getAttribute('aria-selected'),
+    'true',
+    'Hard tab did not become selected',
+  )
+  equal(saveJson().settings.difficulty, 'hard', 'difficulty choice was not saved')
+
+  // The hard tier of the same world is now listed instead of the easy one.
+  const hardButtons = container.querySelectorAll('[aria-label^="Hard level"]')
+  equal(hardButtons.length, 50, 'expected 50 hard levels in the meadow')
+  assert(
+    !container.querySelector('[aria-label^="Easy level"]'),
+    'the easy tier should be replaced, not stacked below',
+  )
+  assert(
+    !text().includes('Even Steps'),
+    'easy-only content should not appear on the hard tab',
+  )
+
+  // Switching back restores the easy list.
+  tap([...container.querySelectorAll('[role="tab"]')].find((t) => t.textContent?.includes('Easy')), 'Easy tab')
+  equal(container.querySelectorAll('[aria-label^="Easy level"]').length, 50, 'easy tier not restored')
+  equal(saveJson().settings.difficulty, 'easy', 'switching back was not saved')
+})
+
+await test('every tier of an open world is playable — difficulty is a filter, not a lock', () => {
+  go('/world/meadow')
+  for (const tab of ['Easy', 'Medium', 'Hard']) {
+    const button = [...container.querySelectorAll('[role="tab"]')].find(
+      (t) => t.textContent?.includes(tab),
+    )
+    assert(button, `no ${tab} tab`)
+    equal(button?.getAttribute('aria-disabled'), null, `${tab} tab should never be disabled`)
+  }
 })
 
 await test('an unknown world id falls back to the full level list', () => {
@@ -287,7 +350,7 @@ await test('an unknown world id falls back to the full level list', () => {
 await test('numeric puzzle: a wrong answer gives a nudge and a retry, no penalty to progress', () => {
   go('/play/apple-cart')
   assert(text().includes('The Apple Cart'), 'wrong puzzle loaded')
-  assert(text().includes('Puzzle 3 of 10'), 'level number missing')
+  assert(text().includes(`Level 3 of ${LEVELS_PER_GROUP}`), 'level number missing')
   typeAnswer('24')
   assert(slotText().includes('24'), `answer slot did not update, got "${slotText()}"`)
   click(byText('button', 'Check my answer'), 'check')
@@ -328,8 +391,11 @@ await test('results screen: stars, the answer, the why and the career totals', (
   assert(text().includes('24 − 9 = 15'), 'explanation text missing')
   assert(text().includes('Sunbeam Meadow'), 'world progress missing')
   assert(!text().includes('World clear!'), 'meadow is not fully cleared yet')
-  // apple-cart is level 3, so the next button must offer level 4, not level 2.
-  assert(byText('button', 'Next · The Wave'), 'no next-level button')
+  // apple-cart is easy level 3 of meadow, so next must be easy level 4 — the
+  // next level in the same tier, not a different world or an earlier level.
+  const easyMeadow = puzzlesInGroup('meadow', 'easy')
+  const expectedNext = easyMeadow[3]
+  assert(byText('button', `Next · ${expectedNext.title}`), 'no next-level button')
   assert(
     !text().includes('Next · Double Trouble'),
     'next must point forwards, not back at the previous level',
@@ -351,14 +417,14 @@ await test('a solved level is written to localStorage with the right numbers', (
 await test('home picks up the saved progress and offers to continue', () => {
   go('/', { keepSave: true })
   assert(text().includes('Keep going!'), 'welcome back message missing')
-  assert(text().includes('1 of 10 puzzles solved'), 'solved count not read back')
+  assert(text().includes(`1 of ${PUZZLES.length} puzzles solved`), 'solved count not read back')
   assert(text().includes('Continue · '), 'no continue button')
 })
 
-await test('the level list marks the solved level with a tick and 3 stars', () => {
+await test('the level list marks the solved level with a tick and its stars', () => {
   go('/world/meadow', { keepSave: true })
-  const button = container.querySelector('[aria-label^="Level 3,"]')
-  assert(button, 'no level 3 button')
+  const button = container.querySelector('[aria-label^="Easy level 3,"]')
+  assert(button, 'no easy level 3 button')
   assert(
     button?.getAttribute('aria-label')?.includes('Solved with 2 of 3 stars'),
     'star record not surfaced',
@@ -503,15 +569,41 @@ await test('a level can always be left or skipped, so nobody is ever trapped', (
   )
 })
 
+await test('skip stays inside the tier you are playing', () => {
+  // A hard-tier level must offer the next hard level, not an easy one.
+  const hardRidge = puzzlesInGroup('ridge', 'hard')[0]
+  go(`/play/${hardRidge.id}`)
+  const skip = byText('button', 'Skip to')
+  assert(skip, 'no skip button')
+  const nextHard = puzzlesInGroup('ridge', 'hard')[1]
+  assert(skip.textContent?.includes(nextHard.title), 'skip left the hard tier')
+  assert(text().includes('Hard'), 'the tier should be visible while playing')
+})
+
 /* ---------------------------------------------------------- settings --- */
 
-await test('settings shows both toggles and the per-world breakdown', () => {
+await test('settings shows both toggles, the tier picker and the per-world breakdown', () => {
   go('/settings', { keepSave: true })
   assert(text().includes('Sound effects'), 'no sound setting')
   assert(text().includes('Reduce motion'), 'no motion setting')
+  assert(text().includes('Default difficulty'), 'no difficulty setting')
   assert(text().includes('Stored on this device only'), 'no privacy note')
   for (const world of WORLDS) assert(text().includes(world.name), `missing ${world.name}`)
   assert(byLabel('Reduce motion')?.getAttribute('aria-checked') === 'false', 'motion should start off')
+})
+
+await test('the settings tier picker changes the default and saves it', () => {
+  const tabs = [...container.querySelectorAll('[role="tablist"][aria-label="Default difficulty"] [role="tab"]')]
+  equal(tabs.length, 3, 'expected three difficulty tabs')
+  tap(tabs.find((t) => t.textContent?.includes('Medium')), 'Medium tab')
+  equal(saveJson().settings.difficulty, 'medium', 'tier not saved')
+  assert(
+    tabs.find((t) => t.textContent?.includes('Medium'))?.getAttribute('aria-selected') === 'true',
+    'aria-selected not updated',
+  )
+  // Put it back so the reset test below starts from a known place.
+  tap(tabs.find((t) => t.textContent?.includes('Easy')), 'Easy tab')
+  equal(saveJson().settings.difficulty, 'easy', 'tier not restored')
 })
 
 await test('settings motion toggle flips aria-checked and persists', () => {
@@ -533,15 +625,33 @@ await test('resetting progress needs a confirmation and then wipes the save', ()
 
 await test('after a reset, home is back to a clean slate', () => {
   go('/', { keepSave: true })
-  assert(text().includes('0 of 10 puzzles solved'), 'home did not reset')
+  assert(text().includes(`0 of ${PUZZLES.length} puzzles solved`), 'home did not reset')
   assert(text().includes('Start playing'), 'should offer a fresh start')
+})
+
+await test('a reset keeps the chosen tier, it does not silently snap back', () => {
+  go('/world/meadow', { keepSave: true })
+  tap([...container.querySelectorAll('[role="tab"]')].find((t) => t.textContent?.includes('Hard')), 'Hard tab')
+  equal(saveJson().settings.difficulty, 'hard', 'tier not selected')
+  go('/settings', { keepSave: true })
+  tap(byText('button', 'Reset progress'), 'reset')
+  click(byText('button', 'Yes, erase everything'), 'confirm reset')
+  equal(saveJson().settings.difficulty, 'hard', 'reset should not change the tier')
 })
 
 /* ----------------------------------------------- every puzzle mounts --- */
 
-await test('all 10 puzzles mount their own view without a dead end', () => {
-  equal(PUZZLES.length, 10, 'expected 10 puzzles')
-  for (const puzzle of PUZZLES) {
+await test('a sample of every world and tier mounts its own view without a dead end', () => {
+  // Mounting all 600 would take minutes in jsdom, so this samples the first,
+  // a middle and the last level of every group, plus every hand-written opener.
+  const sample = PUZZLES.filter((p) => !p.id.includes('-')).slice(0, 12)
+  for (const world of WORLDS) {
+    for (const difficulty of DIFFICULTIES) {
+      const group = puzzlesInGroup(world.id, difficulty)
+      sample.push(group[0], group[Math.floor(group.length / 2)], group.at(-1)!)
+    }
+  }
+  for (const puzzle of sample) {
     unmount()
     mount(`/play/${puzzle.id}`)
     assert(!text().includes('could not find'), `${puzzle.id} did not resolve`)
@@ -550,6 +660,26 @@ await test('all 10 puzzles mount their own view without a dead end', () => {
       container.querySelector('input, [role="switch"], button') !== null,
       `${puzzle.id} rendered with no way to answer`,
     )
+  }
+})
+
+await test('every one of the 600 levels resolves to a real puzzle', () => {
+  for (const puzzle of PUZZLES) {
+    assert(puzzle.id.length > 0, 'level with no id')
+    assert(puzzle.prompt.length > 0, `${puzzle.id} has no prompt`)
+  }
+  equal(PUZZLES.length, WORLD_LEVELS * WORLDS.length, 'level count should be worlds x tiers x 50')
+  // Every world holds the same 50 levels per tier.
+  for (const world of WORLDS) {
+    equal(worldLevelCount(world.id), WORLD_LEVELS, `${world.id} level count wrong`)
+    for (const difficulty of DIFFICULTIES) {
+      equal(puzzlesInWorld(world.id).length, WORLD_LEVELS, `${world.id} total wrong`)
+      equal(
+        puzzlesInGroup(world.id, difficulty).length,
+        LEVELS_PER_GROUP,
+        `${world.id}/${difficulty} wrong`,
+      )
+    }
   }
 })
 

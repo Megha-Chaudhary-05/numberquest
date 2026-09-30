@@ -10,11 +10,60 @@
 
 export type WorldId = 'meadow' | 'lagoon' | 'ridge' | 'ruins'
 
+/**
+ * Three difficulty tiers, ordered easy → medium → hard.
+ *
+ * The player picks a tier and can change it at any time; it filters the level
+ * lists rather than locking anything away. Every world offers all three tiers,
+ * so "hard" means *this kind of world, taken further* — not a different world.
+ */
+export type Difficulty = 'easy' | 'medium' | 'hard'
+
+export const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard']
+
+export const DIFFICULTY_META: Record<
+  Difficulty,
+  { label: string; blurb: string; emoji: string; tone: 'mint' | 'sunny' | 'coral' }
+> = {
+  easy: {
+    label: 'Easy',
+    blurb: 'Warm-up levels. One idea at a time.',
+    emoji: '🟢',
+    tone: 'mint',
+  },
+  medium: {
+    label: 'Medium',
+    blurb: 'Two steps at once, a little more thinking.',
+    emoji: '🟡',
+    tone: 'sunny',
+  },
+  hard: {
+    label: 'Hard',
+    blurb: 'Longer chains and trickier wording.',
+    emoji: '🔴',
+    tone: 'coral',
+  },
+}
+
+/** 1 = easy, 2 = medium, 3 = hard. */
+export const difficultyRank = (d: Difficulty): number => DIFFICULTIES.indexOf(d) + 1
+
+export const isDifficulty = (v: unknown): v is Difficulty =>
+  typeof v === 'string' && (DIFFICULTIES as string[]).includes(v)
+
 /** Shared fields every puzzle must provide. */
 export interface PuzzleBase {
   /** Stable id — also the route segment: /play/:id */
   id: string
   worldId: WorldId
+  /** Which tier this level belongs to. */
+  difficulty: Difficulty
+  /**
+   * Position within its world+difficulty group, 1-based. This is what the level
+   * list shows, so numbering stays 1..N even though the id carries the world
+   * and tier for routing.
+   */
+  levelNumber: number
   /** Short, friendly level name shown in the level list. */
   title: string
   /** Emoji used on the level node and the results screen. */

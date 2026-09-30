@@ -5,7 +5,8 @@ import { Button } from '../components/ui/Button'
 import { LockIcon, PlayIcon, StarIcon } from '../components/ui/Icons'
 import { Card, Chip, ProgressBar, Screen, SoundButton, TopBar } from '../components/ui'
 import { WORLDS } from '../data/worlds'
-import { puzzlesInWorld } from '../data/puzzles'
+import { puzzlesInGroup } from '../data/puzzles'
+import { DIFFICULTY_META } from '../data/types'
 import { useProgress } from '../game/ProgressContext'
 import { play } from '../game/sound'
 
@@ -13,7 +14,8 @@ import { play } from '../game/sound'
 
 export function MapScreen() {
   const navigate = useNavigate()
-  const { worldProgress, totalStars, levelRecord, soundOn, toggleSound } = useProgress()
+  const { worldProgress, groupProgress, totalStars, levelRecord, soundOn, toggleSound, difficulty } =
+    useProgress()
 
   return (
     <Screen wash className="map-dots">
@@ -28,10 +30,13 @@ export function MapScreen() {
         {WORLDS.map((world, i) => {
           const progress = worldProgress(world.id)
           const locked = !progress.unlocked
-          const levels = puzzlesInWorld(world.id)
-          // Resume the first unsolved level, otherwise the first level.
-          const resume = levels.find((p) => !levelRecord(p.id).solved) ?? levels[0]
           const cleared = progress.solved === progress.total
+
+          // Resume inside the tier the player last browsed, so the map respects
+          // their chosen difficulty instead of always jumping to Easy.
+          const tierLevels = puzzlesInGroup(world.id, difficulty)
+          const resume = tierLevels.find((p) => !levelRecord(p.id).solved) ?? tierLevels[0]
+          const tier = groupProgress(world.id, difficulty)
 
           return (
             <motion.div
@@ -106,6 +111,13 @@ export function MapScreen() {
                           ? 'New adventure'
                           : `Next up: ${resume?.title ?? 'All clear'}`}
                       </span>
+                      <span
+                        className="text-xs font-bold text-ink-faint"
+                        aria-label={`Browsing ${DIFFICULTY_META[difficulty].label} levels`}
+                      >
+                        <span aria-hidden="true">{DIFFICULTY_META[difficulty].emoji}</span>{' '}
+                        {DIFFICULTY_META[difficulty].label} · {tier.solved}/{tier.total}
+                      </span>
                       <div className="flex gap-2">
                         <Button
                           size="sm"
@@ -139,7 +151,8 @@ export function MapScreen() {
         })}
 
         <p className="pt-2 text-center text-xs leading-relaxed font-semibold text-ink-faint">
-          Worlds open as you collect stars. Nothing is ever lost — come back any time.
+          Each world holds 50 easy, 50 medium and 50 hard levels. Worlds open as you collect
+          stars, and every tier is playable as soon as its world does — nothing is ever lost.
         </p>
       </main>
     </Screen>

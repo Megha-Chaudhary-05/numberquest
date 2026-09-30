@@ -1,4 +1,5 @@
-import type { Puzzle } from './types'
+import { generateLevel } from './generators'
+import { DIFFICULTIES, WORLD_IDS, type Difficulty, type Puzzle } from './types'
 
 /* ========================================================================== *
  * NumberQuest — level pack 1
@@ -9,7 +10,29 @@ import type { Puzzle } from './types'
  * the map, level list, unlocks and scoring all derive from this array.
  * ========================================================================== */
 
-export const PUZZLES: Puzzle[] = [
+/* ------------------------------------------------------------- openers ==== */
+/**
+ * The ten hand-written levels that open each world.
+ *
+ * They are the tutorial: one idea per level, in order, one of each interaction
+ * style. Everything after these is generated (see `generators.ts`), so this list
+ * stays small enough to genuinely hand-craft.
+ *
+ * `difficulty` and `levelNumber` are filled in by `withPlacement` below — the
+ * literals below only carry the content.
+ */
+/**
+ * `Puzzle` is a union, and a plain `Omit` over a union collapses to the shared
+ * keys only — which would drop `items`, `parts`, `slots` and friends. This
+ * distributes the omit across each member so every kind keeps its own fields.
+ */
+type OmitPlacement = Puzzle extends infer T
+  ? T extends Puzzle
+    ? Omit<T, 'difficulty' | 'levelNumber'>
+    : never
+  : never
+
+const OPENERS: OmitPlacement[] = [
   /* ------------------------------------------------- World 1 · Sunbeam Meadow */
   {
     id: 'even-steps',
@@ -206,6 +229,64 @@ export const PUZZLES: Puzzle[] = [
   },
 ]
 
+/* =========================================================== assembly ==== */
+/**
+ * How many levels each world+difficulty group holds. With four worlds and three
+ * tiers that is 4 × 3 × 50 = 200 levels, 600 stars.
+ *
+ * The openers take the first `easy` slots of their world, so a new player meets
+ * hand-written content first and generated levels after.
+ */
+export const LEVELS_PER_GROUP = 50
+
+/** Stamp the placement fields onto an opener. */
+function withPlacement(
+  opener: OmitPlacement,
+  difficulty: Difficulty,
+  levelNumber: number,
+): Puzzle {
+  return { ...opener, difficulty, levelNumber } as Puzzle
+}
+
+function buildPuzzles(): Puzzle[] {
+  const out: Puzzle[] = []
+
+  for (const worldId of WORLD_IDS) {
+    const worldOpeners = OPENERS.filter((o) => o.worldId === worldId)
+    // Openers fill the first N easy slots, in the order they were written.
+    const openerCount = Math.min(worldOpeners.length, LEVELS_PER_GROUP)
+    const worldLevels: Puzzle[] = []
+
+    for (const difficulty of DIFFICULTIES) {
+      for (let n = 1; n <= LEVELS_PER_GROUP; n++) {
+        const opener = difficulty === 'easy' && n <= openerCount ? worldOpeners[n - 1] : undefined
+        if (opener) {
+          worldLevels.push(withPlacement(opener, difficulty, n))
+        } else {
+          worldLevels.push(generateLevel(`${worldId}-${difficulty}-${n}`, worldId, difficulty, n))
+        }
+      }
+    }
+
+    // Hand-written openers carry hand-written point values, and a generated level
+    // can come out lower than the opener before it. Flooring each level at one
+    // more than the level before it guarantees a level is never worth less than
+    // an earlier one in the same world, so "later level, more points" always
+    // holds.
+    let floor = 0
+    for (const level of worldLevels) {
+      const basePoints = Math.max(level.basePoints, floor + 1)
+      out.push({ ...level, basePoints } as Puzzle)
+      floor = basePoints
+    }
+  }
+
+  return out
+}
+
+/** Every level in the game, ordered world → difficulty → level number. */
+export const PUZZLES: Puzzle[] = buildPuzzles()
+
 /* ============================================================ selectors ==== */
 
 const byId = new Map(PUZZLES.map((p) => [p.id, p]))
@@ -213,11 +294,37 @@ const byId = new Map(PUZZLES.map((p) => [p.id, p]))
 export const getPuzzle = (id: string | undefined): Puzzle | undefined =>
   id ? byId.get(id) : undefined
 
+/** Every level in a world, all difficulties, in play order. */
 export const puzzlesInWorld = (worldId: Puzzle['worldId']): Puzzle[] =>
   PUZZLES.filter((p) => p.worldId === worldId)
 
-/** Flat, ordered play-through — also used to decide world unlock progress. */
+/** One difficulty slice of one world, ordered by level number. */
+export const puzzlesInGroup = (
+  worldId: Puzzle['worldId'],
+  difficulty: Difficulty,
+): Puzzle[] => PUZZLES.filter((p) => p.worldId === worldId && p.difficulty === difficulty)
+
+/**
+ * Flat, ordered play-through. `ProgressContext` uses this to find the next level
+ * after a clear, so it runs world by world, easy → medium → hard.
+ */
 export const LEVEL_ORDER: Puzzle[] = PUZZLES
 
+/** The level after `id` in play order, or null at the very end. */
+export const nextPuzzle = (id: string): Puzzle | null => {
+  const i = LEVEL_ORDER.findIndex((p) => p.id === id)
+  return i >= 0 && i < LEVEL_ORDER.length - 1 ? LEVEL_ORDER[i + 1] : null
+}
+
 export const totalBasePoints = PUZZLES.reduce((sum, p) => sum + p.basePoints, 0)
+
+/** Three stars for every level in the game. */
 export const MAX_STARS = PUZZLES.length * 3
+
+/** How many levels a world holds across all difficulties. */
+export const worldLevelCount = (worldId: Puzzle['worldId']): number =>
+  puzzlesInWorld(worldId).length
+
+/** Stars available in one world across all difficulties. */
+export const worldMaxStars = (worldId: Puzzle['worldId']): number =>
+  worldLevelCount(worldId) * 3

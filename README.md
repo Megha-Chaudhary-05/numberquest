@@ -1,8 +1,8 @@
 # NumberQuest
 
-A colourful 2D maths puzzle adventure for ages 11–20. Ten hand-written puzzles
-across four worlds, three stars per puzzle, hints that teach rather than give
-away, and progress that lives on the player's own device.
+A colourful 2D maths puzzle adventure for ages 11–20. 600 levels across four
+worlds and three difficulty tiers, three stars per level, hints that teach rather
+than give away, and progress that lives on the player's own device.
 
 No account, no server, no tracking. Everything is static files.
 
@@ -67,18 +67,43 @@ Four worlds, gated by cumulative stars:
 
 | World | Levels | Unlocks at |
 | --- | --- | --- |
-| Sunbeam Meadow | 3 | 0 stars |
-| Coral Lagoon | 3 | 4 stars |
-| Equation Ridge | 2 | 9 stars |
-| Riddle Ruins | 2 | 14 stars |
+| Sunbeam Meadow | 150 | 0 stars |
+| Coral Lagoon | 150 | 60 stars |
+| Equation Ridge | 150 | 150 stars |
+| Riddle Ruins | 150 | 260 stars |
+
+Each world holds **50 easy, 50 medium and 50 hard levels**, 1800 stars in total
+across the game. A tier is a filter, not a lock: the moment a world opens, all
+three of its tiers are playable. The level list and the world map remember which
+tier you last browsed, and skipping or "next level" stays inside that tier so a
+player working through hard levels is never dropped into easy.
 
 Stars: 3 for first try with no hint, 2 for one slip or one hint, 1 for clearing
 it at all. A wrong answer costs a few points, never progress, and there are no
 lives to lose.
 
-Ten puzzle kinds are implemented: number sequences, arithmetic word problems,
+Seven puzzle kinds are implemented: number sequences, arithmetic word problems,
 repeating-pattern shapes, count-the-picture grids, doubling rows, missing
 addends, token-built equations, and riddles. Every one explains its answer.
+
+### Where the levels come from
+
+The first levels of each world are hand-written openers — one idea per level, the
+interaction style introduced gently. The remaining 590 are generated from
+templates by a seeded PRNG in `src/data/generators.ts`.
+
+Two properties make generation safe:
+
+1. **Deterministic.** The seed is derived from the level id, so a level always
+   generates the same puzzle. Saved progress can never point at a level that has
+   quietly changed shape.
+2. **Self-verifying.** Every generator returns the answer it actually computed,
+   and `npm run test:logic` re-derives that answer from the level's own data —
+   counting the emoji, re-solving the equation, re-balancing the sum — for all
+   600 levels. A generator that drifts out of sync fails the build.
+
+The test suite also asserts no two levels in a tier share a title, and that
+prompts carry their own numbers so no two levels read identically.
 
 Accessibility: full keyboard support, visible focus rings, live regions for
 feedback, 56px touch targets, and a reduce-motion setting that also follows the
@@ -98,9 +123,14 @@ src/
 scripts/        test and icon tooling
 ```
 
-Adding a puzzle means appending an object to `PUZZLES` in `src/data/puzzles.ts`.
-The map, level list, unlocks, and scoring all derive from that array, so nothing
-else needs to change. A new *kind* needs one component in `src/components/puzzle/`
+Levels are assembled in `src/data/puzzles.ts`: hand-written openers from the
+`OPENERS` list fill the first slots of each world's easy tier, and
+`src/data/generators.ts` fills the rest. The map, level lists, unlocks, tier
+filters and scoring all derive from the resulting array, so changing
+`LEVELS_PER_GROUP` rescales the whole game consistently.
+
+To add a hand-written level, append it to `OPENERS` — it becomes the next easy
+level of its world. A new *kind* needs one component in `src/components/puzzle/`
 plus one entry in its registry.
 
 ## Commands
@@ -122,11 +152,15 @@ has no image toolchain.
 
 ## Tests
 
-`npm run test:logic` checks the puzzle content itself: that the diagrams really
-contain the numbers the answers claim, that every riddle is satisfied by exactly
-one option, that all valid equations are accepted and false ones refused, and
-that the save format survives garbage input.
+`npm run test:logic` checks the puzzle content itself across all 600 levels: that
+the diagrams really contain the numbers the answers claim, that every sequence
+continues to its stated answer under a real rule, that every fill-in-gap sum
+balances, that every equation bank really has a true arrangement of its own
+tokens, that every level accepts its own answer, that titles are unique within a
+tier, and that the save format survives garbage input.
 
 `npm run test:ui` mounts every screen in a simulated browser and drives it with
-real clicks — wrong answers, retries, hints, unlocks, resets, and a full
-play-through. It catches dead buttons and broken state, not just bad maths.
+real clicks — wrong answers, retries, hints, tier switching, unlocks, resets, and
+a full play-through. It samples the first, middle and last level of every world
+and tier, since mounting all 600 in jsdom would take minutes. It catches dead
+buttons and broken state, not just bad maths.
