@@ -345,6 +345,80 @@ await test('an unknown world id falls back to the full level list', () => {
   for (const world of WORLDS) assert(text().includes(world.name), `missing ${world.name}`)
 })
 
+await test('all levels: one tier picker filters the whole page', () => {
+  go('/levels')
+  // A single picker for the page, not one per world.
+  const tablists = container.querySelectorAll('[role="tablist"][aria-label="Difficulty"]')
+  equal(tablists.length, 1, 'the all-levels page should have exactly one tier picker')
+
+  // Easy is the default and it shows every world's easy levels.
+  equal(container.querySelectorAll('[aria-label^="Easy level"]').length, 50, 'expected 50 easy levels')
+  assert(text().includes('Showing easy levels'), 'no readout of the active tier')
+})
+
+await test('all levels: choosing a tier drops down to that tier’s levels', () => {
+  const tab = (label: string) =>
+    [...container.querySelectorAll('[role="tablist"][aria-label="Difficulty"] [role="tab"]')].find(
+      (t) => t.textContent?.includes(label),
+    )
+
+  tap(tab('Medium'), 'Medium tab')
+  equal(saveJson().settings.difficulty, 'medium', 'tier not saved')
+
+  // The medium levels are now on screen, and the easy ones are gone.
+  equal(
+    container.querySelectorAll('[aria-label^="Medium level"]').length,
+    50,
+    'expected 50 medium levels',
+  )
+  equal(
+    container.querySelectorAll('[aria-label^="Easy level"]').length,
+    0,
+    'the previous tier should be replaced, not stacked below',
+  )
+  assert(text().includes('Showing medium levels'), 'the readout did not follow the picker')
+  // Every world is still represented, all on the chosen tier.
+  for (const world of WORLDS) assert(text().includes(world.name), `missing ${world.name}`)
+  assert(
+    container.querySelector('[aria-label^="Medium level 1,"]') !== null,
+    'the medium levels should be on screen',
+  )
+
+  tap(tab('Hard'), 'Hard tab')
+  equal(
+    container.querySelectorAll('[aria-label^="Hard level"]').length,
+    50,
+    'expected 50 hard levels',
+  )
+  equal(container.querySelectorAll('[aria-label^="Medium level"]').length, 0, 'medium still showing')
+
+  tap(tab('Easy'), 'Easy tab')
+  equal(container.querySelectorAll('[aria-label^="Easy level"]').length, 50, 'easy tier not restored')
+})
+
+await test('all levels: picking a tier scrolls the list into view', async () => {
+  // scrollIntoView is stubbed in jsdom, so record the call instead. The scroll
+  // is scheduled on the next animation frame, hence the settle.
+  const calls: unknown[] = []
+  const original = dom.window.HTMLElement.prototype.scrollIntoView
+  dom.window.HTMLElement.prototype.scrollIntoView = function stub(...args: unknown[]) {
+    calls.push(args[0])
+  }
+  try {
+    const tab = [...container.querySelectorAll('[role="tab"]')].find((t) =>
+      t.textContent?.includes('Hard'),
+    )
+    tap(tab, 'Hard tab')
+    equal(saveJson().settings.difficulty, 'hard', 'tier not saved')
+    await settle(80)
+    assert(calls.length > 0, 'changing tier should scroll to the levels')
+    const options = calls[0] as { behavior?: string; block?: string } | undefined
+    equal(options?.block, 'start', 'should scroll the list to the top of the viewport')
+  } finally {
+    dom.window.HTMLElement.prototype.scrollIntoView = original
+  }
+})
+
 /* ------------------------------------------------- numeric + grading --- */
 
 await test('numeric puzzle: a wrong answer gives a nudge and a retry, no penalty to progress', () => {
@@ -548,7 +622,31 @@ await test('using a hint costs a star on an otherwise clean run', async () => {
   assert(saveJson().levels['coral-doubles'].stars === 2, 'hint should cost one star')
 })
 
-/* ------------------------------------------------------- dead ends ----- */
+await test('results screen: the actions sit above the answer, not below it', () => {
+  // A player who just cleared a level should not have to scroll past the
+  // write-up to reach Next / Replay / World map.
+  go('/result/even-steps', { keepSave: true })
+  const main = container.querySelector('main')!
+  const children = [...main.children]
+  const find = (needle: string) => children.findIndex((el) => (el.textContent ?? '').includes(needle))
+
+  const nextIndex = find('Next · ')
+  const replayIndex = find('Replay')
+  const mapIndex = find('World map')
+  const answerIndex = find('The answer')
+  const whyIndex = find('Why it works')
+
+  assert(nextIndex >= 0, 'no next button')
+  assert(replayIndex >= 0, 'no replay button')
+  assert(mapIndex >= 0, 'no world map button')
+  assert(answerIndex >= 0, 'no answer card')
+  assert(whyIndex >= 0, 'no explanation')
+
+  assert(nextIndex < answerIndex, 'Next should sit above the answer')
+  assert(replayIndex < answerIndex, 'Replay should sit above the answer')
+  assert(mapIndex < answerIndex, 'World map should sit above the answer')
+  assert(nextIndex < whyIndex, 'Next should sit above the explanation')
+})
 
 await test('an unknown level id shows a friendly dead end, not a crash', () => {
   go('/play/does-not-exist')

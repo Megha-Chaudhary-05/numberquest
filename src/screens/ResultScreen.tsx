@@ -145,64 +145,12 @@ export function ResultScreen() {
           </div>
         </Card>
 
-        {/* The answer + why */}
-        <Card className="p-5">
-          <p className="text-xs font-extrabold tracking-wide text-brand-500 uppercase">
-            The answer
-          </p>
-          <p className="mt-1 text-2xl font-extrabold text-ink sm:text-3xl">
-            {answerLabel(puzzle)}
-          </p>
-          <div className="mt-4 rounded-3xl border-2 border-line bg-brand-50/60 p-4">
-            <p className="text-xs font-extrabold tracking-wide text-brand-500 uppercase">
-              Why it works
-            </p>
-            <p className="mt-1.5 text-sm leading-relaxed font-semibold text-ink-soft sm:text-base">
-              {puzzle.explanation}
-            </p>
-          </div>
-        </Card>
-
-        {/* World progress */}
-        {world ? (
-          <Card className="p-4 sm:p-5">
-            <div className="flex items-center gap-3">
-              <WorldArt worldId={world.id} className="h-14 w-14 shrink-0" />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-base font-extrabold text-ink">{world.name}</p>
-                <p className="text-xs font-bold text-ink-faint">
-                  {progress.solved}/{progress.total} solved · {progress.totalStars}/
-                  {progress.maxStars} stars
-                </p>
-              </div>
-              {worldJustCleared ? <Chip tone="mint">World clear!</Chip> : null}
-            </div>
-            <ProgressBar
-              value={progress.percent}
-              label={`${world.name}: ${Math.round(progress.percent)} percent complete`}
-              className="mt-3"
-              tone={worldJustCleared ? 'mint' : 'brand'}
-            />
-          </Card>
-        ) : null}
-
-        {/* Career totals */}
-        <Card className="flex items-center justify-around gap-2 p-4">
-          <Stat label="Total stars" value={`${totalStars}`} />
-          <span className="h-10 w-px bg-line" aria-hidden="true" />
-          <Stat label="Total points" value={`${totalPoints}`} />
-          <span className="h-10 w-px bg-line" aria-hidden="true" />
-          <Stat label="Puzzles" value={`${solvedCount}/${levelCount}`} />
-        </Card>
-
-        <ProgressBar
-          value={overallPercent}
-          label={`Overall progress: ${Math.round(overallPercent)} percent`}
-          tone="sunny"
-        />
-
-        {/* Actions */}
-        <div className="space-y-2.5 pt-1">
+        {/*
+         * Actions sit directly under the stars, above the explanation, so a
+         * player who just cleared a level can move on without scrolling past
+         * the write-up first.
+         */}
+        <div className="space-y-2.5">
           {next ? (
             <Button
               size="lg"
@@ -264,6 +212,62 @@ export function ResultScreen() {
             Back home
           </Button>
         </div>
+
+        {/* The answer + why */}
+        <Card className="p-5">
+          <p className="text-xs font-extrabold tracking-wide text-brand-500 uppercase">
+            The answer
+          </p>
+          <p className="mt-1 text-2xl font-extrabold text-ink sm:text-3xl">
+            {answerLabel(puzzle)}
+          </p>
+          <div className="mt-4 rounded-3xl border-2 border-line bg-brand-50/60 p-4">
+            <p className="text-xs font-extrabold tracking-wide text-brand-500 uppercase">
+              Why it works
+            </p>
+            <p className="mt-1.5 text-sm leading-relaxed font-semibold text-ink-soft sm:text-base">
+              {puzzle.explanation}
+            </p>
+          </div>
+        </Card>
+
+        {/* World progress */}
+        {world ? (
+          <Card className="p-4 sm:p-5">
+            <div className="flex items-center gap-3">
+              <WorldArt worldId={world.id} className="h-14 w-14 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-base font-extrabold text-ink">{world.name}</p>
+                <p className="text-xs font-bold text-ink-faint">
+                  {progress.solved}/{progress.total} solved · {progress.totalStars}/
+                  {progress.maxStars} stars
+                </p>
+              </div>
+              {worldJustCleared ? <Chip tone="mint">World clear!</Chip> : null}
+            </div>
+            <ProgressBar
+              value={progress.percent}
+              label={`${world.name}: ${Math.round(progress.percent)} percent complete`}
+              className="mt-3"
+              tone={worldJustCleared ? 'mint' : 'brand'}
+            />
+          </Card>
+        ) : null}
+
+        {/* Career totals */}
+        <Card className="flex items-center justify-around gap-2 p-4">
+          <Stat label="Total stars" value={`${totalStars}`} />
+          <span className="h-10 w-px bg-line" aria-hidden="true" />
+          <Stat label="Total points" value={`${totalPoints}`} />
+          <span className="h-10 w-px bg-line" aria-hidden="true" />
+          <Stat label="Puzzles" value={`${solvedCount}/${levelCount}`} />
+        </Card>
+
+        <ProgressBar
+          value={overallPercent}
+          label={`Overall progress: ${Math.round(overallPercent)} percent`}
+          tone="sunny"
+        />
       </main>
     </Screen>
   )

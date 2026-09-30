@@ -1,9 +1,10 @@
 import { motion } from 'framer-motion'
+import { useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button } from '../components/ui/Button'
 import { MapIcon, NextIcon, StarIcon } from '../components/ui/Icons'
 import { Card, ProgressBar, Screen, SoundButton, StarRow, TopBar } from '../components/ui'
-import { LEVEL_ORDER, puzzlesInGroup } from '../data/puzzles'
+import { LEVEL_ORDER, LEVELS_PER_GROUP, puzzlesInGroup } from '../data/puzzles'
 import { getWorld, WORLDS } from '../data/worlds'
 import { DIFFICULTIES, DIFFICULTY_META, type Difficulty, type WorldId } from '../data/types'
 import { useProgress } from '../game/ProgressContext'
@@ -26,8 +27,9 @@ export function LevelSelectScreen() {
   } = useProgress()
 
   const world = getWorld(params.worldId)
+  const listTopRef = useRef<HTMLDivElement>(null)
 
-  /* No world in the URL: every level, split by tier, with a world filter. */
+  /* No world in the URL: every level, filtered by the tier picker. */
   if (!world) {
     return (
       <Screen wash>
@@ -37,33 +39,55 @@ export function LevelSelectScreen() {
           subtitle={`${totalStars} stars collected`}
           right={<SoundButton on={soundOn} onToggle={toggleSound} />}
         />
-        <main className="safe-x safe-b mx-auto w-full max-w-2xl flex-1 space-y-6 py-4">
+        <main className="safe-x safe-b mx-auto w-full max-w-2xl flex-1 space-y-5 py-4">
+          {/*
+           * One picker for the whole page, not one per world. Picking a tier
+           * filters every world to that tier and scrolls the list into view, so
+           * "Medium" always lands the player on medium levels.
+           */}
+          <div className="sticky top-[4.25rem] z-20 -mx-1 space-y-1.5 bg-paper/85 px-1 py-2 backdrop-blur-md">
+            <DifficultyPicker
+              value={difficulty}
+              onChange={(next) => {
+                setDifficulty(next)
+                // Drop down to the levels themselves rather than leaving the
+                // player looking at the top of a very long list.
+                requestAnimationFrame(() => {
+                  listTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                })
+              }}
+            />
+            <p className="text-center text-xs font-semibold text-ink-faint">
+              Showing {DIFFICULTY_META[difficulty].label.toLowerCase()} levels ·{' '}
+              {WORLDS.length * LEVELS_PER_GROUP} total
+            </p>
+          </div>
+
+          <div ref={listTopRef} className="scroll-mt-32" />
+
           {WORLDS.map((w) => {
             const progress = worldProgress(w.id)
+            const tier = groupProgress(w.id, difficulty)
             return (
               <section key={w.id} aria-labelledby={`h-${w.id}`}>
                 <h2
                   id={`h-${w.id}`}
-                  className="mb-2 flex items-center gap-2 text-base font-extrabold text-ink"
+                  className="mb-1 flex items-center gap-2 text-base font-extrabold text-ink"
                 >
                   <span aria-hidden="true">{progress.unlocked ? w.emoji : '🔒'}</span>
                   {w.name}
                   <span className="ml-auto text-xs font-bold text-ink-faint">
-                    {progress.totalStars}/{progress.maxStars} ★
+                    {tier.solved}/{tier.total} {DIFFICULTY_META[difficulty].label}
                   </span>
                 </h2>
-                <DifficultyPicker value={difficulty} onChange={setDifficulty} />
-                {DIFFICULTIES.map((d) => (
-                  <DifficultyBlock
-                    key={d}
-                    worldId={w.id}
-                    difficulty={d}
-                    locked={!progress.unlocked}
-                    lockedMessage={`Collect ${w.starsToUnlock} stars to open this world`}
-                    onOpen={(id) => navigate(`/play/${id}`)}
-                    recordOf={levelRecord}
-                  />
-                ))}
+                <LevelList
+                  worldId={w.id}
+                  difficulty={difficulty}
+                  locked={!progress.unlocked}
+                  lockedMessage={`Collect ${w.starsToUnlock} stars to open this world`}
+                  onOpen={(id) => navigate(`/play/${id}`)}
+                  recordOf={levelRecord}
+                />
               </section>
             )
           })}
@@ -216,49 +240,6 @@ function DifficultyPicker({
         )
       })}
     </div>
-  )
-}
-
-/* ========================================================== difficulty ==== */
-
-/** One tier of one world, as a labelled group with its own heading. */
-function DifficultyBlock({
-  worldId,
-  difficulty,
-  locked,
-  lockedMessage,
-  onOpen,
-  recordOf,
-}: {
-  worldId: WorldId
-  difficulty: Difficulty
-  locked?: boolean
-  lockedMessage?: string
-  onOpen: (puzzleId: string) => void
-  recordOf: (id: string) => { stars: number; solved: boolean; bestPoints: number }
-}) {
-  const meta = DIFFICULTY_META[difficulty]
-  const levels = puzzlesInGroup(worldId, difficulty)
-  const solved = levels.filter((p) => recordOf(p.id).solved).length
-
-  return (
-    <section className="mt-4 first:mt-2" aria-label={`${meta.label} levels`}>
-      <h3 className="mb-2 flex items-center gap-2 text-sm font-extrabold text-ink">
-        <span aria-hidden="true">{meta.emoji}</span>
-        {meta.label}
-        <span className="ml-auto text-xs font-bold text-ink-faint">
-          {locked ? '🔒' : `${solved}/${levels.length}`}
-        </span>
-      </h3>
-      <LevelList
-        worldId={worldId}
-        difficulty={difficulty}
-        locked={locked}
-        lockedMessage={lockedMessage}
-        onOpen={onOpen}
-        recordOf={recordOf}
-      />
-    </section>
   )
 }
 
