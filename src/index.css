@@ -1,0 +1,219 @@
+/* Baloo 2 — a rounded, friendly display face. Bundled locally so the game
+   renders identically offline and on every host. */
+@import '@fontsource/baloo-2/latin-400.css';
+@import '@fontsource/baloo-2/latin-600.css';
+@import '@fontsource/baloo-2/latin-700.css';
+@import '@fontsource/baloo-2/latin-800.css';
+
+@import 'tailwindcss';
+
+/* ============================================================== theme ==== */
+
+@theme {
+  --font-sans:
+    'Baloo 2', ui-rounded, 'SF Pro Rounded', 'Segoe UI Variable Display',
+    'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', sans-serif;
+  --font-display: var(--font-sans);
+
+  /* Brand — a bright, friendly violet that anchors every screen. */
+  --color-brand-50: #f4f1ff;
+  --color-brand-100: #e9e3ff;
+  --color-brand-200: #d5caff;
+  --color-brand-300: #b9a5ff;
+  --color-brand-400: #9a7dff;
+  --color-brand-500: #7c5cff;
+  --color-brand-600: #6a3ff0;
+  --color-brand-700: #572fcc;
+  --color-brand-800: #4627a3;
+  --color-brand-900: #2f1a6b;
+
+  /* Accents used by the worlds and feedback states. */
+  --color-sunny: #ffb020;
+  --color-sunny-soft: #fff1d6;
+  --color-coral: #ff5d73;
+  --color-coral-soft: #ffe3e7;
+  --color-mint: #16c79a;
+  --color-mint-soft: #d7f8ee;
+  --color-sky: #2fb0f5;
+  --color-sky-soft: #dcf0ff;
+  --color-grape: #a855f7;
+  --color-grape-soft: #f0e2ff;
+
+  --color-ink: #241a45;
+  --color-ink-soft: #5c5180;
+  --color-ink-faint: #8b83a8;
+  --color-paper: #fffaf2;
+  --color-line: #ece5fb;
+
+  --radius-4xl: 2rem;
+  --radius-5xl: 2.75rem;
+
+  --shadow-pop: 0 6px 0 0 rgb(0 0 0 / 0.09);
+  --shadow-card: 0 10px 30px -12px rgb(60 40 130 / 0.28);
+  --shadow-float: 0 18px 44px -18px rgb(60 40 130 / 0.45);
+
+  --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* =============================================================== base ==== */
+
+@layer base {
+  :root {
+    --app-vh: 100dvh;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-paper text-ink font-sans antialiased;
+    margin: 0;
+    /* Keep Android/iOS from bouncing or text-selecting while playing. */
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+    min-height: var(--app-vh);
+  }
+
+  /* Reset the tap highlight on every interactive element only. */
+  button,
+  a,
+  [role='button'] {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  /* A single, consistent, always-visible focus ring for keyboard users. */
+  :focus-visible {
+    outline: 3px solid var(--color-brand-600);
+    outline-offset: 3px;
+    border-radius: 0.75rem;
+  }
+
+  /* Screen-reader-only helper. */
+  .sr-only-focusable:not(:focus):not(:focus-within) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* =========================================================== utilities ==== */
+
+/* Respect phone notches / gesture bars on every edge. */
+@utility safe-t {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+@utility safe-b {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@utility safe-x {
+  padding-left: max(1rem, env(safe-area-inset-left, 0px));
+  padding-right: max(1rem, env(safe-area-inset-right, 0px));
+}
+@utility safe-px {
+  padding-left: max(1rem, env(safe-area-inset-left, 0px));
+  padding-right: max(1rem, env(safe-area-inset-right, 0px));
+}
+
+/* Prevent iOS from zooming when a number-pad input gains focus. */
+@utility no-zoom {
+  font-size: max(16px, 1em);
+}
+
+@utility card {
+  @apply bg-white border-2 border-line rounded-4xl shadow-card;
+}
+
+@utility pressable {
+  @apply transition-transform duration-150 ease-[var(--ease-pop)] active:translate-y-1 active:shadow-none;
+}
+
+/* A soft, animated gradient wash used behind the home + map screens. */
+@utility sky-wash {
+  background:
+    radial-gradient(120% 80% at 12% 0%, #ffe9c9 0%, transparent 55%),
+    radial-gradient(110% 75% at 92% 8%, #dcd0ff 0%, transparent 52%),
+    radial-gradient(120% 90% at 50% 108%, #d6f6ec 0%, transparent 58%),
+    #fffaf2;
+}
+
+/* Dotted "trail" texture for the world map. */
+@utility map-dots {
+  background-image: radial-gradient(rgb(124 92 255 / 0.14) 1.5px, transparent 1.5px);
+  background-size: 22px 22px;
+}
+
+/* ================================================================= keyframes */
+
+@keyframes float-soft {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes wiggle {
+  0%,
+  100% {
+    transform: rotate(-3deg);
+  }
+  50% {
+    transform: rotate(3deg);
+  }
+}
+
+@keyframes pop-in {
+  from {
+    transform: scale(0.85);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@utility animate-float {
+  animation: float-soft 4.5s ease-in-out infinite;
+}
+@utility animate-wiggle {
+  animation: wiggle 2.6s ease-in-out infinite;
+}
+@utility animate-pop {
+  animation: pop-in 0.35s var(--ease-pop) both;
+}
+
+/* Screen-reader-only live region for announcements. */
+@utility live-region {
+  @apply sr-only;
+}
